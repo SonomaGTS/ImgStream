@@ -118,13 +118,6 @@ SENSOR_UNIT_TOP_RIGHT: "°F"
 `SENSOR_UNIT_` is optional per corner, and each one is free to use a different unit. Leave an entity
 blank to leave that corner empty.
 
-This form covers the single-sensor case too, with three of the entities blank. It is what the shipped
-`docker-compose.yml` uses.
-
-**Don't set both forms at once.** A per-corner variable wins over `SENSOR_ENTITY`, and a blank one
-still counts as set, so adding `SENSOR_ENTITY` alongside the block above changes nothing. That is
-harmless, but blanking all four while leaving `SENSOR_ENTITY` in place gives you no sensor anywhere.
-
 Text placement:
 
 | Variable | Default | What it does |
@@ -156,7 +149,7 @@ Timing and the stale screen:
 | `STALE_SECONDS` | `60` | No new image for this long shows the grey screen |
 | `POLL_SECONDS` | `5` | How often the image URL is fetched |
 | `HTTP_TIMEOUT` | `10` | Seconds before giving up on a stalled request |
-| `PLACEHOLDER_COLOR` | `#6e6e6e` | Grey screen color. Lower is darker |
+| `PLACEHOLDER_COLOR` | `#6e6e6e` | Grey screen color |
 | `TZ` | `Etc/UTC` | Timezone for the placeholder timestamp |
 
 
@@ -164,8 +157,7 @@ Timing and the stale screen:
 
 The grey screen's timestamp is the only thing `TZ` affects, and it is worth setting. Containers run
 on UTC by default, so on a machine that isn't set to UTC the placeholder shows a time hours away from
-the real one. That is confusing, because the timestamp is exactly what you use to judge how stale
-the feed is.
+the real one.
 
 `TZ` takes an IANA name such as `America/New_York` or `Australia/Sydney`.
 
