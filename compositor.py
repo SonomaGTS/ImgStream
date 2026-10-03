@@ -133,6 +133,19 @@ for _c in CORNERS:
 MAX_WIDTH_FRAC = float(os.environ.get("MAX_WIDTH_FRAC", "0.40"))
 STAMP_SIZE = int(os.environ.get("STAMP_SIZE", "17"))
 
+STAMP_FORMAT_DEFAULT = "%m/%d/%Y %I:%M:%S %p"
+_stamp_format = os.environ.get("STAMP_FORMAT", "").strip()
+if not _stamp_format:
+    _stamp_format = STAMP_FORMAT_DEFAULT
+else:
+    try:
+        datetime.now().strftime(_stamp_format)
+    except (ValueError, TypeError):
+        log("STAMP_FORMAT: cannot read {!r}, using {!r}".format(
+            _stamp_format, STAMP_FORMAT_DEFAULT))
+        _stamp_format = STAMP_FORMAT_DEFAULT
+STAMP_FORMAT = _stamp_format
+
 DIAGNOSE_AGE = os.environ.get("DIAGNOSE_AGE", "false").lower() == "true"
 
 DIAGNOSE = (os.environ.get("DIAGNOSE", "false").lower() == "true"
@@ -250,7 +263,7 @@ def corner_pos(img, box, corner, margin_x, margin_v,
 
 
 def stamp():
-    return datetime.now().strftime("%m/%d/%Y %I:%M:%S %p")
+    return datetime.now().strftime(STAMP_FORMAT)
 
 
 def draw_overlay(img, corner, text):
@@ -505,6 +518,7 @@ def main():
         BASE_FRAC, MAX_WIDTH_FRAC, STALE_SECONDS))
 
     log("timezone     {} ({})".format(*_timezone()))
+    log("time format   {} -> {!r}".format(STAMP_FORMAT, stamp()))
     log("diagnose     {}{}".format(
         "on" if DIAGNOSE else "off",
         " with source age" if DIAGNOSE_AGE else ""))

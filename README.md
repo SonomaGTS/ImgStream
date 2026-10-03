@@ -142,6 +142,7 @@ The placeholder timestamp has its own size. The sensor text scales with the fram
 | Variable | Default | What it does |
 | --- | --- | --- |
 | `STAMP_SIZE` | `17` | Placeholder timestamp size in pixels |
+| `STAMP_FORMAT` | `%m/%d/%Y %I:%M:%S %p` | How the placeholder timestamp is laid out. A strftime pattern. For example `%d.%m.%Y %H:%M:%S` |
 
 Timing and the grey screen:
 

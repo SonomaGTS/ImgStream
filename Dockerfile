@@ -30,6 +30,7 @@ ENV IMAGE_URL="" \
     BASE_FRAC=0.10 \
     MAX_WIDTH_FRAC=0.40 \
     STAMP_SIZE=17 \
+    STAMP_FORMAT="%m/%d/%Y %I:%M:%S %p" \
     PLACEHOLDER_COLOR=#6e6e6e \
     TEXT_COLOR=#FFFFFF \
     UNAVAILABLE_TEXT=unavailable \
