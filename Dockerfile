@@ -42,6 +42,8 @@ ENV IMAGE_URL="" \
     STREAM_PORT=8084 \
     STREAM_QUALITY=5 \
     STREAM_FPS=2 \
-    TZ=Etc/UTC
+    TZ=Etc/UTC \
+    DIAGNOSE=false \
+    DIAGNOSE_AGE=false
 
 CMD ["/bin/sh", "-c", "while true; do python /app/compositor.py; echo 'compositor exited, restarting'; sleep 5; done & exec /app/serve.sh /data/frame.jpg ${STREAM_PORT} ${STREAM_QUALITY} ${STREAM_FPS}"]

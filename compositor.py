@@ -1,5 +1,6 @@
 # compositor.py: fetches the still image, draws sensor text on it, writes a finished JPEG.
 
+import email.utils
 import io
 import json
 import os
@@ -7,6 +8,7 @@ import time
 import urllib.error
 import urllib.request
 from datetime import datetime
+import datetime as datetime_module
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -130,6 +132,11 @@ for _c in CORNERS:
 
 MAX_WIDTH_FRAC = float(os.environ.get("MAX_WIDTH_FRAC", "0.40"))
 STAMP_SIZE = int(os.environ.get("STAMP_SIZE", "17"))
+
+DIAGNOSE_AGE = os.environ.get("DIAGNOSE_AGE", "false").lower() == "true"
+
+DIAGNOSE = (os.environ.get("DIAGNOSE", "false").lower() == "true"
+            or DIAGNOSE_AGE)
 
 
 
@@ -284,30 +291,121 @@ def make_placeholder(size):
 
 
 
+def parse_http_date(raw):
+    """Parse an HTTP-date header into an aware datetime, or None.
+
+    Returns None rather than raising, because a missing or odd Last-Modified
+    must never be able to stop a frame being drawn. The diagnostic reports that
+    case rather than guessing.
+
+    Coerces to str first. An HTTP header is always a string or None, so this
+    cannot happen from urlopen, but the function is also called from tests and
+    a bare int raised AttributeError on .strip. Cheap to guard.
+    """
+    if raw is None or raw == "":
+        return None
+    try:
+        parsed = email.utils.parsedate_to_datetime(str(raw).strip())
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if parsed is None:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=datetime_module.timezone.utc)
+    return parsed.astimezone(datetime_module.timezone.utc)
+
+
 def fetch_image():
-    """Return (PIL image, change token) or (None, None) if unusable.
+    """Return (PIL image, change token, timing dict) or (None, reason, None).
 
     A half-written FTP upload fails both the JPEG marker check and the decode,
     so it is discarded and the previous good frame stays on screen.
+
+    The timing dict is only populated when DIAGNOSE is on. It carries the
+    source's own Last-Modified, when the server sent one, and how long the fetch
+    itself took.
     """
+    timing = {"fetch_s": 0.0, "source_mtime": None,
+              "server_date": None, "bytes": 0}
+    started = time.monotonic()
     try:
         req = urllib.request.Request(IMAGE_URL, headers={"Cache-Control": "no-cache"})
         with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
             data = resp.read()
-            token = (resp.headers.get("Last-Modified") or "") + str(len(data))
+            last_modified = resp.headers.get("Last-Modified")
+            token = (last_modified or "") + str(len(data))
+            server_date = resp.headers.get("Date")
+        timing["fetch_s"] = time.monotonic() - started
+        timing["bytes"] = len(data)
+        if DIAGNOSE and DIAGNOSE_AGE:
+            timing["source_mtime"] = parse_http_date(last_modified)
+            timing["server_date"] = parse_http_date(server_date)
     except Exception as exc:
-        return None, "error: {}".format(exc)
+        return None, "error: {}".format(exc), None
 
     if not data:
-        return None, "empty response"
+        return None, "empty response", None
     if not (data[:2] == b"\xff\xd8" and data[-2:] == b"\xff\xd9"):
-        return None, "not a complete JPEG ({} bytes)".format(len(data))
+        return None, "not a complete JPEG ({} bytes)".format(len(data)), None
     try:
         img = Image.open(io.BytesIO(data))
         img.load()
     except Exception as exc:
-        return None, "decode failed: {}".format(exc)
-    return img.convert("RGB"), token
+        return None, "decode failed: {}".format(exc), None
+    return img.convert("RGB"), token, timing
+
+
+def report_diagnosis(timing, waited_s, render_s):
+    """Log where the time went on this machine, and optionally end to end.
+
+    Always reported, because all three are timed with a monotonic clock inside
+    this single container and cannot be affected by anything outside it:
+
+      fetch   downloading the image
+      render  decoding, drawing the text, encoding
+      waited  how long the frame sat before the poll noticed it
+
+    The source age is reported only when DIAGNOSE_AGE is also set, because it is
+    the one figure that depends on two machines agreeing about what time it is.
+    See the comment on DIAGNOSE_AGE for what a live capture showed.
+    """
+    fetch_s = timing.get("fetch_s", 0.0)
+    bytes_in = timing.get("bytes", 0)
+    mtime = timing.get("source_mtime")
+    server_date = timing.get("server_date")
+
+    parts = ["fetch {:.0f}ms".format(fetch_s * 1000),
+             "{}KB".format(bytes_in // 1024),
+             "render {:.0f}ms".format(render_s * 1000)]
+
+    if waited_s is not None:
+        parts.append("waited {:.1f}s for our poll".format(waited_s))
+
+    if not DIAGNOSE_AGE:
+        log("diagnose: " + ", ".join(parts))
+        return
+
+    if mtime is None:
+        parts.append("age unknown, source sent no Last-Modified")
+        log("diagnose: " + ", ".join(parts))
+        return
+
+    age = (datetime.now(datetime_module.timezone.utc) - mtime).total_seconds()
+    parts.append("source age {:.1f}s".format(age))
+
+    if age < -0.5:
+        parts.append("WARNING source timestamp is {:.1f}s in the future, "
+                     "the clocks disagree and this age is meaningless"
+                     .format(-age))
+
+    if server_date is not None:
+        skew = (datetime.now(datetime_module.timezone.utc)
+                - server_date).total_seconds()
+        if abs(skew) > 2.0:
+            parts.append("WARNING clock differs from source by {:.0f}s, "
+                         "the age figure is out by that much".format(skew))
+
+    log("diagnose: " + ", ".join(parts))
 
 
 
@@ -409,6 +507,9 @@ def main():
         BASE_FRAC, MAX_WIDTH_FRAC, STALE_SECONDS))
 
     log("timezone     {} ({})".format(*_timezone()))
+    log("diagnose     {}{}".format(
+        "on" if DIAGNOSE else "off",
+        " with source age" if DIAGNOSE_AGE else ""))
     log("text colour  {}  placeholder {}".format(
         _hex(TEXT_COLOR), _hex(PLACEHOLDER_COLOR)))
 
@@ -427,10 +528,14 @@ def main():
     last_reason = None
     last_rendered = None
     size = None
+    last_fetch_started = time.monotonic()
+    in_placeholder = False
+    placeholder_since = 0.0
+    waited_s = None
 
     while True:
         now = time.monotonic()
-        img, token = fetch_image()
+        img, token, timing = fetch_image()
 
         if img is not None:
             recovered = last_reason is not None
@@ -439,6 +544,7 @@ def main():
                 last_token = token
                 last_good = now
                 size = img.size
+                waited_s = now - last_fetch_started
                 if recovered:
                     log("frame source recovered")
                     last_reason = None
@@ -452,22 +558,41 @@ def main():
                 sensor.poll()
             last_sensor_poll = now
 
-        if (now - last_good) >= STALE_SECONDS:
+        stale = (now - last_good) >= STALE_SECONDS
+        if stale:
+            if not in_placeholder:
+                if last_token is None:
+                    log("showing placeholder: no usable frame yet")
+                else:
+                    log("showing placeholder: no new frame for {:.0f}s, "
+                        "threshold is {:.0f}s".format(
+                            now - last_good, STALE_SECONDS))
+                in_placeholder = True
+                placeholder_since = now
             if now - last_stamp >= 1:
                 write(make_placeholder(size or (352, 200)))
                 last_stamp = now
             last_rendered = None
         elif last_frame is not None:
+            if in_placeholder:
+                log("live again after {:.0f}s on the placeholder".format(
+                    now - placeholder_since))
+                in_placeholder = False
             values = {c: s.value() for c, s in sensors.items()} \
                 if TEXT_ENABLED else {}
             render_key = (last_token, tuple(sorted(values.items())))
             if render_key != last_rendered:
                 frame = last_frame.copy()
                 draw_overlays(frame, values)
+                render_started = time.monotonic()
                 write(frame)
                 last_rendered = render_key
+                if DIAGNOSE and timing:
+                    report_diagnosis(timing, waited_s,
+                                     time.monotonic() - render_started)
 
         time.sleep(POLL_SECONDS)
+        last_fetch_started = time.monotonic()
 
 
 if __name__ == "__main__":

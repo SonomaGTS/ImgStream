@@ -1,0 +1,7 @@
+images
+*.log
+.env
+.env.*
+.venv
+venv
+__pycache__/

@@ -1,6 +1,6 @@
 # imgstream
 
-Turns a still JPEG into an MJPEG camera stream, with a Home Assistant sensor value drawn onto the frame.
+Turns a still JPEG into a camera stream. Draws a sensor value from Home Assistant on the frame.
 
 ![A camera frame with sensor values in all four corners](images/overlay-corners.jpg)
 
@@ -11,34 +11,32 @@ One sensor per corner:
 
 ## What it does
 
-Two processes per container:
+Each container runs two programs.
 
-- A Python compositor polls your image URL, checks the image is complete, draws the sensor text on it,
-  and writes the result to a local file.
-- FFmpeg loops that file and serves it as MJPEG.
+A Python script fetches your image over HTTP. It checks the image is whole. It draws the sensor text on it. Then it saves the result to a file.
+
+FFmpeg loops that file and serves it as MJPEG.
 
 
 ## Why
 
-To turn a still image into a camera with the ability to put Home Assistant data over the top.
+You have a camera that only saves snapshots. You want something a viewer can watch. This turns those snapshots into a stream, and puts Home Assistant data on top.
 
 
-## Requirements
+## What you need
 
 - Docker with Docker Compose
-- An image source reachable over HTTP. Any web server will do, including Home Assistant's
-  `/local/` folder.
-- Optionally Home Assistant, if you want a sensor drawn on the frame.
+- An image you can fetch over HTTP. Any web server works. Home Assistant's `/local/` folder works.
+- Home Assistant, if you want sensor text on the frame
 
 
 ## Setup
 
-### 1. Create a Home Assistant token
+### 1. Make a Home Assistant token
 
-Only needed if you want the sensor overlay.
+Skip this if you do not want sensor text.
 
-A token inherits that user's permissions. If you want read-only access, make a non-admin user and
-create the token from there.
+A token gets everything that user can do. For read-only access, make a non-admin user and make the token from there.
 
 
 ### 2. Deploy
@@ -64,10 +62,9 @@ Start it:
 docker compose up -d
 ```
 
-Then point your viewer at `http://<host>:<port>`. `TZ` is your timezone; see below if the placeholder
-timestamp looks wrong.
+Point your viewer at `http://<host>:<port>`. `TZ` is your timezone. See Timezone below if the placeholder clock looks wrong.
 
-To add a sensor overlay, add the settings from the next section.
+To add sensor text, add the settings from the next part.
 
 
 ## Configuration
@@ -76,24 +73,24 @@ Required:
 
 | Variable | What it does |
 | --- | --- |
-| `IMAGE_URL` | The image to pull. Blank and the container refuses to start. |
+| `IMAGE_URL` | The image to pull. Leave it blank and the container refuses to start. |
 | `STREAM_PORT` | Port the stream answers on. Must match the number in `ports:`. |
 
-Home Assistant, for the text overlay:
+Home Assistant:
 
 | Variable | Default | What it does |
 | --- | --- | --- |
-| `HA_URL` | | Home Assistant address, no trailing slash |
+| `HA_URL` | | Home Assistant address. No trailing slash. |
 | `HA_TOKEN` | | Long-lived access token |
-| `SENSOR_POLL_SECONDS` | `60` | How often to poll Home Assistant |
-| `SENSOR_HOLD_SECONDS` | `1800` | Seconds of an unreadable sensor before showing `unavailable` |
+| `SENSOR_POLL_SECONDS` | `60` | How often to check Home Assistant |
+| `SENSOR_HOLD_SECONDS` | `1800` | Seconds before an unreadable sensor shows `unavailable` |
 
 
 ### Sensors
 
-Two ways to do this. Pick one.
+Two ways to set this up. Use one.
 
-**One sensor, one corner.** The short form:
+**Short form.** One sensor, one corner:
 
 ```sh
 SENSOR_ENTITY: "sensor.outdoor_temperature"
@@ -101,8 +98,7 @@ SENSOR_UNIT: "°F"
 TEXT_CORNER: "bottom-left"
 ```
 
-**One sensor per corner.** Each corner takes its own entity and unit, so four different values can
-share the frame:
+**Per corner.** Each corner gets its own entity and unit, so four values can share the frame:
 
 ```sh
 SENSOR_ENTITY_BOTTOM_LEFT: "sensor.outdoor_temperature"
@@ -115,53 +111,98 @@ SENSOR_ENTITY_TOP_RIGHT: "sensor.pool_temperature"
 SENSOR_UNIT_TOP_RIGHT: "°F"
 ```
 
-`SENSOR_UNIT_` is optional per corner, and each one is free to use a different unit. Leave an entity
-blank to leave that corner empty.
+`SENSOR_UNIT_` is optional. Each corner can use a different unit. Leave an entity blank and that corner stays empty.
 
-Text placement:
+Text:
 
 | Variable | Default | What it does |
 | --- | --- | --- |
 | `TEXT_ENABLED` | `true` | Draw the sensor on the frame. Must be exactly `true` or `false` |
-| `TEXT_CORNER` | `bottom-left` | `bottom-left`, `bottom-right`, `top-left`, `top-right`. Which corner the short form draws in |
-| `MARGIN_X` | `6` | Pixels from the left or right edge, or a percentage like `2%` |
-| `MARGIN_BOTTOM` | `8` | Pixels from the bottom or top edge, or a percentage |
-| `BASE_FRAC` | `0.10` | Text size as a fraction of image height |
+| `TEXT_CORNER` | `bottom-left` | `bottom-left`, `bottom-right`, `top-left`, `top-right`. Which corner the short form uses |
+| `TEXT_COLOR` | `#FFFFFF` | Color of the sensor text |
+| `BASE_FRAC` | `0.10` | Text size, as a fraction of image height |
 | `MAX_WIDTH_FRAC` | `0.40` | Long values shrink to fit this fraction of image width |
-| `STAMP_SIZE` | `17` | Placeholder timestamp size in pixels |
-| `TEXT_COLOR` | `#FFFFFF` | color of the sensor text |
 | `UNAVAILABLE_TEXT` | `unavailable` | Shown instead of a number when the sensor dies |
 
-colors are hex, with or without the leading `#`. `#fff` works as well as `#ffffff`, and case does not
-matter. The sensor text keeps a fixed black outline whatever `TEXT_COLOR` is set to, which is what
-keeps it readable against a bright or washed-out picture.
+Position, if the defaults do not fit your frame:
 
-`MARGIN_X_TOP_RIGHT` and the other per-corner margin variables override just that corner.
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `MARGIN_X` | `6` | Pixels from the left or right edge. Or a percentage, like `2%`. |
+| `MARGIN_BOTTOM` | `8` | Pixels from the bottom or top edge. Or a percentage. |
 
-The default margins are tuned for a small frame, around 352x200, so on anything larger they look
-cramped. That is why the example sets `MARGIN_X: "1.7%"` and `MARGIN_BOTTOM: "4%"`, which give the
-same gap at any resolution.
+Colors are hex. The `#` is optional. `#fff` works the same as `#ffffff`. Case does not matter. The text keeps a black outline whatever color you pick, so it stays readable on a bright picture.
 
-Timing and the stale screen:
+`MARGIN_X_TOP_RIGHT` and the other per-corner variables change one corner only.
+
+The default margins are made for a small frame, around 352x200. On anything bigger they look cramped. That is why the example uses `MARGIN_X: "1.7%"` and `MARGIN_BOTTOM: "4%"`. Those give the same gap at any size.
+
+The placeholder clock has its own size. The sensor text scales with the frame. That one should not:
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `STAMP_SIZE` | `17` | Placeholder clock size in pixels |
+
+Timing and the grey screen:
 
 | Variable | Default | What it does |
 | --- | --- | --- |
 | `STALE_SECONDS` | `60` | No new image for this long shows the grey screen |
-| `POLL_SECONDS` | `5` | How often the image URL is fetched |
-| `HTTP_TIMEOUT` | `10` | Seconds before giving up on a stalled request |
+| `POLL_SECONDS` | `5` | How often to fetch the image URL |
+| `HTTP_TIMEOUT` | `10` | Seconds before giving up on a request that stalls |
 | `PLACEHOLDER_COLOR` | `#6e6e6e` | Grey screen color |
-| `TZ` | `Etc/UTC` | Timezone for the placeholder timestamp |
+| `TZ` | `Etc/UTC` | Timezone for the placeholder clock |
+| `DIAGNOSE` | `false` | Log timing for each new frame. See below |
+| `DIAGNOSE_AGE` | `false` | Add the source age to that line. Read the warning first |
+
+
+### Finding out where the delay is
+
+Set `DIAGNOSE: "true"`. Each new frame gets one line:
+
+```
+diagnose: fetch 53ms, 12KB, render 2ms, waited 0.4s for our poll
+```
+
+- **fetch** — downloading the image
+- **render** — decoding, drawing the text, saving
+- **waited** — how long the frame sat there before our poll found it. If your source updates faster than `POLL_SECONDS`, expect half the interval
+
+Turn it off when you are done. It logs a line per frame, and that adds up fast.
+
+#### The source age
+
+`DIAGNOSE_AGE: "true"` turns on both. Setting it alone is enough. The startup log tells you what is on:
+
+```
+compositor: diagnose     on with source age
+```
+
+That adds one more number:
+
+```
+diagnose: fetch 53ms, 12KB, render 2ms, waited 0.4s for our poll, source age 45.5s
+```
+
+`source age` is how old the file was when we fetched it. That covers your whole setup, plus our poll wait.
+
+
+If the clocks are more than half a second apart, the line says so:
+
+```
+..., source age -0.7s, WARNING source timestamp is 0.7s in the future, the clocks disagree and this age is meaningless
+```
+
+A file cannot change in the future. So a negative age proves the clocks are out. If you see that, sync the clocks on both machines, or ignore the number. The other three are fine either way.
 
 
 ### Timezone
 
-The grey screen's timestamp is the only thing `TZ` affects, and it is worth setting. Containers run
-on UTC by default, so on a machine that isn't set to UTC the placeholder shows a time hours away from
-the real one.
+`TZ` only changes the placeholder clock. You should set it. Containers run on UTC by default. If your machine is not on UTC, the placeholder shows a time hours off.
 
-`TZ` takes an IANA name such as `America/New_York` or `Australia/Sydney`.
+`TZ` takes an IANA name, like `America/New_York` or `Australia/Sydney`.
 
-Alternatively, to follow the host's timezone without naming it:
+Or follow the host instead of naming it:
 
 ```yaml
 volumes:
@@ -169,92 +210,73 @@ volumes:
 ```
 
 
-## Behaviour worth knowing
+## How it behaves
 
-**Grey screen.** After `STALE_SECONDS` with no usable image, you get a grey frame with the current date
-and time, so you can see how stale the feed is. No sensor value is shown on it.
+**Grey screen.** After `STALE_SECONDS` with no usable image, you get a grey frame with the date and time on it. So you can see how old the feed is. No sensor value shows on it.
 
 ![A grey screen showing the current date and time](images/placeholder.jpg)
 
-**A half-written image is discarded.** An FTP upload in progress produces a truncated JPEG. It's
-detected and skipped, and the previous frame stays up.
+**Half-written images get dropped.** An FTP upload that is still running makes a broken JPEG. We skip it. The last good frame stays up.
 
-**A dead sensor doesn't kill the feed.** A short Home Assistant outage holds the last reading. After
-`SENSOR_HOLD_SECONDS` it shows `unavailable` instead. The timer resets as soon as a good reading
-arrives.
+**A dead sensor does not kill the feed.** A short Home Assistant outage holds the last reading. After `SENSOR_HOLD_SECONDS`, it shows `unavailable`. A good reading resets that timer.
 
-**Text scales with resolution.** `BASE_FRAC` is a fraction of image height, so the same setting looks
-the same on a 352x200 frame and a 1080p one. Margins are pixels unless you add a `%`.
+**Text scales with the image.** `BASE_FRAC` is a fraction of image height. So one setting looks the same on 352x200 and on 1080p. Margins are pixels unless you add a `%`.
 
 
 ## Things to watch for
 
-| Setting | Symptom if you get it wrong |
+| Setting | What goes wrong |
 | --- | --- |
-| `POLL_SECONDS` higher than `STALE_SECONDS` | A healthy camera stuck on the grey screen permanently |
-| `STALE_SECONDS` lower than your source's update interval | Grey screen on a working camera for most of each cycle |
-| `TEXT_ENABLED` misspelled | Silently no text. Only `true` or `false` count, so `yes` means false |
-| Pixel margins on a large frame | Text jammed into the corner, hard to read |
-| A color without the `#`, or as `r,g,b` | Logged as unreadable and falls back to the default |
+| `POLL_SECONDS` higher than `STALE_SECONDS` | A working camera stuck on the grey screen |
+| `STALE_SECONDS` lower than how often your source updates | Grey screen on a working camera, most of the time |
+| `TEXT_ENABLED` misspelled | No text, and no error. Only `true` and `false` count, so `yes` means no |
+| Pixel margins on a big frame | Text jammed in the corner, hard to read |
 
-The second is the one most likely to bite. If your image updates every 20 minutes, `STALE_SECONDS`
-needs to be well above that.
+The second one bites the most often. If your image updates every 20 minutes, `STALE_SECONDS` needs to be well above that.
 
 
-## Limitations
+## Limits
 
-**Sensor values show as they are.** No unit conversion, no rounding. Whatever Home Assistant reports is
-what gets drawn. If you want `72°F`, have the sensor report `72` and set `SENSOR_UNIT` to `°F`.
+**Sensor values show exactly as they are.** No unit conversion. No rounding. Whatever Home Assistant reports is what you see. If you want `72°F`, have the sensor report `72` and set `SENSOR_UNIT` to `°F`.
 
 
-## Output format
+## Output
 
-MJPEG over HTTP, using `multipart/x-mixed-replace`. Every frame is a standalone JPEG, so a dropped
-packet costs one frame rather than breaking the stream.
+MJPEG over HTTP, using `multipart/x-mixed-replace`. Every frame is a whole JPEG on its own. A dropped packet costs you one frame, not the stream.
 
 Stream settings:
 
 | Variable | Default | What it does |
 | --- | --- | --- |
-| `STREAM_FPS` | `2` | Frames per second served. This is a loop over a still image, so higher values cost CPU without adding information |
-| `STREAM_QUALITY` | `5` | JPEG quality, FFmpeg's `-q:v` scale. Lower is better quality and more CPU, and the usable range is roughly 2 to 8 |
+| `STREAM_FPS` | `2` | Frames per second. This loops one still image, so more frames cost CPU and add nothing |
+| `STREAM_QUALITY` | `5` | JPEG quality, on FFmpeg's `-q:v` scale. Lower means better quality and more CPU. Usable range is about 2 to 8 |
 
-Neither is usually worth changing. The frame only changes when a new image arrives, so a higher frame
-rate shows the same picture more often.
+Neither is worth changing. The frame only changes when a new image lands. More frames just show the same picture more often.
 
 
-## Troubleshooting
+## When it goes wrong
 
-**Grey screen with a timestamp.** No usable image for `STALE_SECONDS`. Open `IMAGE_URL` in a browser.
-If it loads there, the source is fine and the problem is between it and the container.
+**Grey screen with a clock on it.** No usable image for `STALE_SECONDS`. Open `IMAGE_URL` in a browser. If it loads there, the source is fine. The problem is between the source and the container.
 
-**The placeholder timestamp is hours out.** The container is on UTC. Set `TZ`, or mount
-`/etc/localtime`.
+**The placeholder clock is hours off.** The container is on UTC. Set `TZ`, or mount `/etc/localtime`.
 
-**Nothing at all on the port.** Check the container is running and look at its logs:
+**Nothing on the port.** Check the container is running, then read its logs:
 
 ```sh
 docker compose logs
 ```
 
-The first line of the log says what it's serving and on which port, which is the quickest way to
-confirm the settings were picked up.
+The first line says what it is serving and on which port. That is the quickest way to check your settings landed.
 
-**No text on the frame.** `TEXT_ENABLED` only accepts `true` or `false`, so `yes` or `True` counts as
-false and there is no error. Also check the token is valid; a bad one fails silently for the first
-`SENSOR_HOLD_SECONDS`.
+**No text on the frame.** `TEXT_ENABLED` only takes `true` or `false`. So `yes` and `True` both count as no, with no error. Also check the token. A bad token fails quietly for the first `SENSOR_HOLD_SECONDS`.
 
-**No text, and both sensor forms are set.** A blank per-corner variable counts as set, and overrides
-the short form. Delete one of the two.
+**No text, and you set both sensor forms.** A blank per-corner variable still counts as set. It beats the short form. Delete one of them.
 
-**Text in the wrong place.** `MARGIN_X` and `MARGIN_BOTTOM` are pixels, not percentages, so they look
-right at one resolution and cramped at another. Use a trailing `%` to make them scale. The startup
-log says which it read, in pixels or percent.
+**Text in the wrong spot.** `MARGIN_X` and `MARGIN_BOTTOM` are pixels, not percentages. So they look right at one size and cramped at another. Add a `%` to make them scale. The startup log tells you which one it read.
 
 
 ## License
 
 MIT. See [LICENSE](LICENSE).
 
-The bundled font, `fonts/RobotoCondensed.ttf`, is Roboto Condensed from Google Fonts, licensed under
-the Apache License 2.0.
+The bundled font, `fonts/RobotoCondensed.ttf`, is Roboto Condensed from Google Fonts. It is under the Apache License 2.0.
