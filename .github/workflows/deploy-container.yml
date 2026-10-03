@@ -7,10 +7,6 @@
 # push to the registry. Adding packages: write is the entire authorisation, and
 # nothing has to be stored or pasted anywhere.
 #
-# ghcr.io/${{ github.repository }} resolves from the account and repo name, so
-# this only lands on ghcr.io/sonomagts/imgstream if the repository is named
-# imgstream under the sonomagts account. A mismatch shows up as a 404 on pull
-# rather than as a build failure, which is why it is worth checking once.
 #
 # The second tag uses the commit SHA. With only :latest, every push overwrites
 # the one tag running containers pull, so there is no way back to the previous
@@ -32,6 +28,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Resolve the image name
+        id: image
+        shell: bash
+        run: |
+          repo="$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+          echo "tag=ghcr.io/$repo" >> "$GITHUB_OUTPUT"
+          echo "pushing ghcr.io/$repo"
+
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -45,5 +49,5 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ github.sha }}
+            ${{ steps.image.outputs.tag }}:latest
+            ${{ steps.image.outputs.tag }}:${{ github.sha }}
