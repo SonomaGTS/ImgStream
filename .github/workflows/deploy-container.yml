@@ -1,0 +1,49 @@
+# Builds the image on every push to main and pushes it to the GitHub container
+# registry, so the published tag tracks the repository instead of being rebuilt
+# by hand.
+#
+# No token needs creating. secrets.GITHUB_TOKEN is minted fresh for each run by
+# GitHub and discarded afterwards; the permissions block below is what lets it
+# push to the registry. Adding packages: write is the entire authorisation, and
+# nothing has to be stored or pasted anywhere.
+#
+# ghcr.io/${{ github.repository }} resolves from the account and repo name, so
+# this only lands on ghcr.io/sonomagts/imgstream if the repository is named
+# imgstream under the sonomagts account. A mismatch shows up as a 404 on pull
+# rather than as a build failure, which is why it is worth checking once.
+#
+# The second tag uses the commit SHA. With only :latest, every push overwrites
+# the one tag running containers pull, so there is no way back to the previous
+# image. The SHA tag is immutable and makes a rollback a matter of changing one
+# line in the user's compose file.
+name: Build and Push Container
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
