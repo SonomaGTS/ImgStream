@@ -62,7 +62,7 @@ Start it:
 docker compose up -d
 ```
 
-Point your viewer at `http://<host>:<port>`. `TZ` is your timezone. See Timezone below if the placeholder clock looks wrong.
+Point your viewer at `http://<host>:<port>`. `TZ` is your timezone. See Timezone below if the placeholder timestamp looks wrong.
 
 To add sensor text, add the settings from the next part.
 
@@ -137,11 +137,11 @@ Colors are hex. The `#` is optional. `#fff` works the same as `#ffffff`. Case do
 
 The default margins are made for a small frame, around 352x200. On anything bigger they look cramped. That is why the example uses `MARGIN_X: "1.7%"` and `MARGIN_BOTTOM: "4%"`. Those give the same gap at any size.
 
-The placeholder clock has its own size. The sensor text scales with the frame. That one should not:
+The placeholder timestamp has its own size. The sensor text scales with the frame. That one should not:
 
 | Variable | Default | What it does |
 | --- | --- | --- |
-| `STAMP_SIZE` | `17` | Placeholder clock size in pixels |
+| `STAMP_SIZE` | `17` | Placeholder timestamp size in pixels |
 
 Timing and the grey screen:
 
@@ -151,7 +151,7 @@ Timing and the grey screen:
 | `POLL_SECONDS` | `5` | How often to fetch the image URL |
 | `HTTP_TIMEOUT` | `10` | Seconds before giving up on a request that stalls |
 | `PLACEHOLDER_COLOR` | `#6e6e6e` | Grey screen color |
-| `TZ` | `Etc/UTC` | Timezone for the placeholder clock |
+| `TZ` | `Etc/UTC` | Timezone for the placeholder timestamp |
 | `DIAGNOSE` | `false` | Log timing for each new frame. See below |
 | `DIAGNOSE_AGE` | `false` | Add the source age to that line. Read the warning first |
 
@@ -198,7 +198,7 @@ A file cannot change in the future. So a negative age proves the clocks are out.
 
 ### Timezone
 
-`TZ` only changes the placeholder clock. You should set it. Containers run on UTC by default. If your machine is not on UTC, the placeholder shows a time hours off.
+`TZ` only changes the placeholder timestamp. You should set it. Containers run on UTC by default. If your machine is not on UTC, the placeholder shows a time hours off.
 
 `TZ` takes an IANA name, like `America/New_York` or `Australia/Sydney`.
 
@@ -256,9 +256,9 @@ Neither is worth changing. The frame only changes when a new image lands. More f
 
 ## When it goes wrong
 
-**Grey screen with a clock on it.** No usable image for `STALE_SECONDS`. Open `IMAGE_URL` in a browser. If it loads there, the source is fine. The problem is between the source and the container.
+**Grey screen with a timestamp on it.** No usable image for `STALE_SECONDS`. Open `IMAGE_URL` in a browser. If it loads there, the source is fine. The problem is between the source and the container.
 
-**The placeholder clock is hours off.** The container is on UTC. Set `TZ`, or mount `/etc/localtime`.
+**The placeholder timestamp is hours off.** The container is on UTC. Set `TZ`, or mount `/etc/localtime`.
 
 **Nothing on the port.** Check the container is running, then read its logs:
 

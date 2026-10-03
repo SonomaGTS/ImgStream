@@ -23,25 +23,3 @@ services:
       SENSOR_ENTITY_TOP_RIGHT: ""
       MARGIN_X: "1.7%"
       MARGIN_BOTTOM: "4%"
-
-  # camera2:
-  #   image: ghcr.io/sonomagts/imgstream:latest
-  #   container_name: imgstream-camera2
-  #   restart: unless-stopped
-  #   ports:
-  #     - "8085:8085"
-  #   environment:
-  #     TZ: "Etc/UTC"
-  #     IMAGE_URL: "http://HOST:PORT/PATH-TO-YOUR-IMAGE.jpg"
-  #     STREAM_PORT: "8085"
-  #     HA_URL: "http://HOST:PORT"
-  #     HA_TOKEN: "PASTE_YOUR_LONG_LIVED_TOKEN_HERE"
-  #     TEXT_ENABLED: "true"
-  #     TEXT_CORNER: "bottom-left"
-  #     SENSOR_ENTITY_BOTTOM_LEFT: "sensor.outdoor_temperature"
-  #     SENSOR_UNIT_BOTTOM_LEFT: "°F"
-  #     SENSOR_ENTITY_BOTTOM_RIGHT: ""
-  #     SENSOR_ENTITY_TOP_LEFT: ""
-  #     SENSOR_ENTITY_TOP_RIGHT: ""
-  #     MARGIN_X: "1.7%"
-  #     MARGIN_BOTTOM: "4%"

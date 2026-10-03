@@ -171,7 +171,6 @@ def _hex(rgb):
     The format string is built by joining six placeholders and the triple is
     unpacked with a star. The first version passed a six-element tuple straight
     into .format(), which does not unpack, and raised TypeError on every single
-    startup. Caught by AI_tasks/test_publish_check.py.
     """
     return "#{:02x}{:02x}{:02x}".format(*rgb)
 
@@ -237,7 +236,6 @@ def corner_pos(img, box, corner, margin_x, margin_v,
     outline drawn around it, so all four corners give the same visible gap from
     their edge. Without this the top corners sat about 8px further from the edge
     than the bottom ones, because the font's ascent offset above the visible
-    pixels was being counted as margin. Verified by AI_tasks/test_corners.py.
     """
     w, h = box[2] - box[0], box[3] - box[1]
     W, H = img.size
