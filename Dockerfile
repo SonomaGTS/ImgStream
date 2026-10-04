@@ -3,7 +3,7 @@
 FROM python:3.13-slim
 
 RUN apt-get update \
- && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ffmpeg tzdata \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata \
  && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir "Pillow>=11.3,<12"
@@ -12,8 +12,7 @@ WORKDIR /app
 
 COPY fonts/ /app/fonts/
 COPY compositor.py /app/compositor.py
-COPY serve.sh /app/serve.sh
-RUN chmod +x /app/serve.sh
+COPY stream_server.py /app/stream_server.py
 
 RUN mkdir -p /data
 
@@ -41,10 +40,9 @@ ENV IMAGE_URL="" \
     HTTP_TIMEOUT=10 \
     FONT_PATH=/app/fonts/RobotoCondensed.ttf \
     STREAM_PORT=8084 \
-    STREAM_QUALITY=5 \
     STREAM_FPS=2 \
     TZ=Etc/UTC \
     DIAGNOSE=false \
     DIAGNOSE_AGE=false
 
-CMD ["/bin/sh", "-c", "while true; do python /app/compositor.py; echo 'compositor exited, restarting'; sleep 5; done & exec /app/serve.sh /data/frame.jpg ${STREAM_PORT} ${STREAM_QUALITY} ${STREAM_FPS}"]
+CMD ["/bin/sh", "-c", "while true; do python /app/compositor.py; echo 'compositor exited, restarting'; sleep 5; done & exec python /app/stream_server.py /data/frame.jpg ${STREAM_PORT} ${STREAM_FPS}"]

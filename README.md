@@ -15,12 +15,14 @@ Each container runs two programs.
 
 A Python script fetches your image over HTTP. It checks the image is whole. It draws the sensor text on it. Then it saves the result to a file.
 
-FFmpeg loops that file and serves it as MJPEG.
+A second small script reads that file and serves it as an MJPEG stream. Any number of viewers can connect at once.
 
+If you need RTSP rather than MJPEG, you can pipe this feed through go2rtc or a similar tool.
 
 ## Why
 
-You have a camera that only saves snapshots. You want something a viewer can watch. This turns those snapshots into a stream, and puts Home Assistant data on top.
+This project is an upgrade to a crude method using Motioneye that I was using to view still images from remote cameras.
+If you have a camera that only saves snapshots, or you receive periodic overwritten images from a remote source, this turns them into a stream with Home Assistant data on top.
 
 
 ## What you need
@@ -36,7 +38,7 @@ You have a camera that only saves snapshots. You want something a viewer can wat
 
 Skip this if you do not want sensor text.
 
-A token gets everything that user can do. For read-only access, make a non-admin user and make the token from there.
+The token is in plain view of the compose file and a token gets everything that user can do. If you want to be more security cautious you can use a non-admin user and make the token from there.
 
 
 ### 2. Deploy
@@ -159,6 +161,8 @@ Timing and the grey screen:
 
 ### Finding out where the delay is
 
+If it seems there is an added delay,
+
 Set `DIAGNOSE: "true"`. Each new frame gets one line:
 
 ```
@@ -188,13 +192,13 @@ diagnose: fetch 53ms, 12KB, render 2ms, waited 0.4s for our poll, source age 45.
 `source age` is how old the file was when we fetched it. That covers your whole setup, plus our poll wait.
 
 
-If the clocks are more than half a second apart, the line says so:
+If the image is being hosted remotely and the system clocks are more than half a second apart, the line says so:
 
 ```
 ..., source age -0.7s, WARNING source timestamp is 0.7s in the future, the clocks disagree and this age is meaningless
 ```
 
-A file cannot change in the future. So a negative age proves the clocks are out. If you see that, sync the clocks on both machines, or ignore the number. The other three are fine either way.
+A negative age proves the system clocks are out of sync. If you see that, sync the clocks on both machines, or ignore the number. The other three are fine either way.
 
 
 ### Timezone
@@ -213,7 +217,7 @@ volumes:
 
 ## How it behaves
 
-**Grey screen.** After `STALE_SECONDS` with no usable image, you get a grey frame with the date and time on it. So you can see how old the feed is. No sensor value shows on it.
+**Grey screen.** After `STALE_SECONDS` with no usable image, you get a grey frame with the date and time on it. So you can see how old the feed has been broken. No sensor value shows on it.
 
 ![A grey screen showing the current date and time](images/placeholder.jpg)
 
@@ -245,14 +249,12 @@ The second one bites the most often. If your image updates every 20 minutes, `ST
 
 MJPEG over HTTP, using `multipart/x-mixed-replace`. Every frame is a whole JPEG on its own. A dropped packet costs you one frame, not the stream.
 
-Stream settings:
+Any number of viewers can connect at once.
 
 | Variable | Default | What it does |
 | --- | --- | --- |
-| `STREAM_FPS` | `2` | Frames per second. This loops one still image, so more frames cost CPU and add nothing |
-| `STREAM_QUALITY` | `5` | JPEG quality, on FFmpeg's `-q:v` scale. Lower means better quality and more CPU. Usable range is about 2 to 8 |
+| `STREAM_FPS` | `2` | Frames per second sent to each viewer. The frame only changes when a new image lands, so more frames show the same picture more often |
 
-Neither is worth changing. The frame only changes when a new image lands. More frames just show the same picture more often.
 
 
 ## When it goes wrong

@@ -12,14 +12,9 @@ import datetime as datetime_module
 
 from PIL import Image, ImageDraw, ImageFont
 
-
-
-
 def log(msg):
     print("{} compositor: {}".format(
         datetime.now().strftime("%Y-%m-%d %H:%M:%S"), msg), flush=True)
-
-
 
 IMAGE_URL = os.environ["IMAGE_URL"]
 OUTPUT_PATH = os.environ["OUTPUT_PATH"]
@@ -41,25 +36,16 @@ LEGACY_CORNER = os.environ.get("TEXT_CORNER", "bottom-left").lower()
 if LEGACY_CORNER not in CORNERS:
     LEGACY_CORNER = "bottom-left"
 
-
 def _suffix(corner):
-    """bottom-left becomes BOTTOM_LEFT, so the variable has no hyphen.
-
-    Hyphens are not usable in an environment variable name in most shells, and
-    docker compose would treat them awkwardly. Underscores only.
-    """
     return corner.replace("-", "_").upper()
 
-
 def _sensor_env(corner, legacy_name):
-    """Per-corner value if set, otherwise the legacy single value."""
     specific = os.environ.get("SENSOR_ENTITY_{}".format(_suffix(corner)))
     if specific is not None:
         return specific
     if corner == LEGACY_CORNER:
         return os.environ.get(legacy_name, "")
     return ""
-
 
 def _unit_env(corner, legacy_name):
     specific = os.environ.get("SENSOR_UNIT_{}".format(_suffix(corner)))
@@ -69,28 +55,12 @@ def _unit_env(corner, legacy_name):
         return os.environ.get(legacy_name, "")
     return ""
 
-
 SENSOR_ENTITY = {c: _sensor_env(c, "SENSOR_ENTITY") for c in CORNERS}
 SENSOR_UNIT = {c: _unit_env(c, "SENSOR_UNIT") for c in CORNERS}
 
 BASE_FRAC = float(os.environ.get("BASE_FRAC", "0.10"))
 
-
 def parse_length(raw, axis):
-    """Accept either an absolute pixel count or a percentage of the frame.
-
-    A bare number is always pixels, so every existing value keeps working
-    unchanged. Only an explicit trailing percent sign means a fraction, and only
-    then does the value scale with the frame.
-
-    Deliberately not inferring percent from the number being small. Someone
-    typing 0.5 means half a pixel, not half the frame, and guessing otherwise
-    would put the text in a wildly wrong place. Being literal is safer.
-
-    Returns (value, is_percent). The chosen interpretation is reported at startup,
-    since a percent sign being silently ignored would look like a rendering fault
-    rather than a units mistake.
-    """
     raw = str(raw).strip().lower()
     try:
         if raw.endswith("%"):
@@ -106,17 +76,14 @@ def parse_length(raw, axis):
         log("MARGIN {}: cannot read {!r}, using 0".format(axis, raw))
         return 0.0, False
 
-
 MARGIN_X, MARGIN_X_PCT = parse_length(
     os.environ.get("MARGIN_X", "6"), "X")
 MARGIN_BOTTOM, MARGIN_BOTTOM_PCT = parse_length(
     os.environ.get("MARGIN_BOTTOM", "8"), "BOTTOM")
 
-
 def _corner_var(axis, corner):
     key = "MARGIN_X" if axis == "X" else "MARGIN_BOTTOM"
     return "{}_{}".format(key, corner.replace("-", "_").upper())
-
 
 MARGINS = {}
 for _c in CORNERS:
@@ -128,7 +95,6 @@ for _c in CORNERS:
         parse_length(_bvar, "BOTTOM") if _bvar is not None
         else (MARGIN_BOTTOM, MARGIN_BOTTOM_PCT),
     )
-
 
 MAX_WIDTH_FRAC = float(os.environ.get("MAX_WIDTH_FRAC", "0.40"))
 STAMP_SIZE = int(os.environ.get("STAMP_SIZE", "17"))
@@ -150,8 +116,6 @@ DIAGNOSE_AGE = os.environ.get("DIAGNOSE_AGE", "false").lower() == "true"
 
 DIAGNOSE = (os.environ.get("DIAGNOSE", "false").lower() == "true"
             or DIAGNOSE_AGE)
-
-
 
 def parse_color(raw, name, fallback):
     text = str(raw).strip()
@@ -177,16 +141,8 @@ def parse_color(raw, name, fallback):
     log("COLOR {}: cannot read {!r}, using {}".format(name, raw, fallback))
     return fallback
 
-
 def _hex(rgb):
-    """Render an RGB triple as #rrggbb, for the startup log.
-
-    The format string is built by joining six placeholders and the triple is
-    unpacked with a star. The first version passed a six-element tuple straight
-    into .format(), which does not unpack, and raised TypeError on every single
-    """
     return "#{:02x}{:02x}{:02x}".format(*rgb)
-
 
 PLACEHOLDER_COLOR = parse_color(
     os.environ.get("PLACEHOLDER_COLOR")
@@ -196,16 +152,9 @@ PLACEHOLDER_COLOR = parse_color(
 TEXT_COLOR = parse_color(
     os.environ.get("TEXT_COLOR", "#FFFFFF"), "TEXT_COLOR", (255, 255, 255))
 
-
 FONT_PATH = os.environ.get("FONT_PATH", "/app/fonts/RobotoCondensed.ttf")
 
 def _timezone():
-    """Return (abbreviation, utc offset as +HH:MM) for the running container.
-
-    Uses the TZ-aware branch of the time module, which reads whatever the TZ
-    variable points at. Falls back to UTC naming when the platform has no
-    timezone set, rather than raising.
-    """
     local = time.localtime()
     if time.daylight and local.tm_isdst > 0:
         seconds = -time.altzone
@@ -218,11 +167,7 @@ def _timezone():
     return name, "{}{:02d}:{:02d}".format(sign, seconds // 3600,
                                           (seconds % 3600) // 60)
 
-
-
-
 def fit_font(text, height, max_width):
-    """Base size as a fraction of frame height, shrinking to fit max width."""
     size = max(6, int(round(height * BASE_FRAC)))
     while size > 6:
         font = ImageFont.truetype(FONT_PATH, size)
@@ -232,24 +177,8 @@ def fit_font(text, height, max_width):
         size -= 1
     return ImageFont.truetype(FONT_PATH, 6)
 
-
 def corner_pos(img, box, corner, margin_x, margin_v,
                margin_x_pct=False, margin_v_pct=False):
-    """Top-left of the text, given the corner it is anchored to.
-
-    margin_x always measures from the horizontal edge the text sits against.
-    margin_v measures from the vertical edge on the same side as the corner.
-
-    A margin flagged as a percentage is a fraction of the matching frame
-    dimension, so it scales with resolution. Otherwise it is an absolute pixel
-    count. Rounded to whole pixels, since a fractional pixel position has no
-    meaning.
-
-    Anchoring compensates for the glyph's own overhang and for the one pixel
-    outline drawn around it, so all four corners give the same visible gap from
-    their edge. Without this the top corners sat about 8px further from the edge
-    than the bottom ones, because the font's ascent offset above the visible
-    """
     w, h = box[2] - box[0], box[3] - box[1]
     W, H = img.size
     left = corner.endswith("left")
@@ -261,10 +190,8 @@ def corner_pos(img, box, corner, margin_x, margin_v,
     y = my - 2 * box[1] if top else H - h - my
     return x, y
 
-
 def stamp():
     return datetime.now().strftime(STAMP_FORMAT)
-
 
 def draw_overlay(img, corner, text):
     font = fit_font(text, img.size[1], int(img.size[0] * MAX_WIDTH_FRAC))
@@ -275,9 +202,7 @@ def draw_overlay(img, corner, text):
         (x, y), text, font=font, fill=TEXT_COLOR, stroke_width=1,
         stroke_fill=(0, 0, 0))
 
-
 def draw_overlays(img, values):
-    """Draw one value per corner. Empty values are skipped entirely."""
     draw = ImageDraw.Draw(img)
     for corner in CORNERS:
         text = values.get(corner, "")
@@ -285,7 +210,6 @@ def draw_overlays(img, values):
             continue
         draw_overlay(img, corner, text)
     return img
-
 
 def make_placeholder(size):
     img = Image.new("RGB", size, PLACEHOLDER_COLOR)
@@ -299,20 +223,7 @@ def make_placeholder(size):
               stroke_fill=(40, 40, 40))
     return img
 
-
-
-
 def parse_http_date(raw):
-    """Parse an HTTP-date header into an aware datetime, or None.
-
-    Returns None rather than raising, because a missing or odd Last-Modified
-    must never be able to stop a frame being drawn. The diagnostic reports that
-    case rather than guessing.
-
-    Coerces to str first. An HTTP header is always a string or None, so this
-    cannot happen from urlopen, but the function is also called from tests and
-    a bare int raised AttributeError on .strip. Cheap to guard.
-    """
     if raw is None or raw == "":
         return None
     try:
@@ -325,17 +236,7 @@ def parse_http_date(raw):
         return parsed.replace(tzinfo=datetime_module.timezone.utc)
     return parsed.astimezone(datetime_module.timezone.utc)
 
-
 def fetch_image():
-    """Return (PIL image, change token, timing dict) or (None, reason, None).
-
-    A half-written FTP upload fails both the JPEG marker check and the decode,
-    so it is discarded and the previous good frame stays on screen.
-
-    The timing dict is only populated when DIAGNOSE is on. It carries the
-    source's own Last-Modified, when the server sent one, and how long the fetch
-    itself took.
-    """
     timing = {"fetch_s": 0.0, "source_mtime": None,
               "server_date": None, "bytes": 0}
     started = time.monotonic()
@@ -365,21 +266,7 @@ def fetch_image():
         return None, "decode failed: {}".format(exc), None
     return img.convert("RGB"), token, timing
 
-
 def report_diagnosis(timing, waited_s, render_s):
-    """Log where the time went on this machine, and optionally end to end.
-
-    Always reported, because all three are timed with a monotonic clock inside
-    this single container and cannot be affected by anything outside it:
-
-      fetch   downloading the image
-      render  decoding, drawing the text, encoding
-      waited  how long the frame sat before the poll noticed it
-
-    The source age is reported only when DIAGNOSE_AGE is also set, because it is
-    the one figure that depends on two machines agreeing about what time it is.
-    See the comment on DIAGNOSE_AGE for what a live capture showed.
-    """
     fetch_s = timing.get("fetch_s", 0.0)
     bytes_in = timing.get("bytes", 0)
     mtime = timing.get("source_mtime")
@@ -418,15 +305,7 @@ def report_diagnosis(timing, waited_s, render_s):
 
     log("diagnose: " + ", ".join(parts))
 
-
-
-
 class Sensor:
-    """Holds the last good reading for one corner. Escalates to 'unavailable'.
-
-    Note: frames and sensors both come from the same HA machine, so a full HA
-    outage is handled by the stale-frame grey screen, not here.
-    """
 
     def __init__(self, corner, entity, unit):
         self.corner = corner
@@ -485,15 +364,10 @@ class Sensor:
     def value(self):
         return self.text
 
-
-
-
 def write(img):
-    """Write atomically so FFmpeg never reads a half-written file."""
     tmp = OUTPUT_PATH + ".tmp"
     img.save(tmp, format="JPEG", quality=95)
     os.replace(tmp, OUTPUT_PATH)
-
 
 def main():
     log("image url    {}".format(IMAGE_URL))
@@ -605,7 +479,6 @@ def main():
 
         time.sleep(POLL_SECONDS)
         last_fetch_started = time.monotonic()
-
 
 if __name__ == "__main__":
     while True:
