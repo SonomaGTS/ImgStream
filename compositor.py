@@ -211,11 +211,11 @@ def draw_overlays(img, values):
         draw_overlay(img, corner, text)
     return img
 
-def make_placeholder(size):
+def make_placeholder(size, when=None):
     img = Image.new("RGB", size, PLACEHOLDER_COLOR)
     draw = ImageDraw.Draw(img)
     font = ImageFont.truetype(FONT_PATH, STAMP_SIZE)
-    text = stamp()
+    text = stamp() if when is None else when
     box = draw.textbbox((0, 0), text, font=font, stroke_width=1)
     x = (size[0] - (box[2] - box[0])) / 2
     y = size[1] / 2 - (box[3] - box[1]) / 2
@@ -410,13 +410,14 @@ def main():
     last_token = None
     last_good = 0.0
     last_sensor_poll = 0.0
-    last_stamp = 0.0
     last_reason = None
     last_rendered = None
     size = None
     last_fetch_started = time.monotonic()
     in_placeholder = False
     placeholder_since = 0.0
+    placeholder_stamp = None
+    last_rendered_stamp = None
     waited_s = None
 
     while True:
@@ -455,9 +456,10 @@ def main():
                             now - last_good, STALE_SECONDS))
                 in_placeholder = True
                 placeholder_since = now
-            if now - last_stamp >= 1:
-                write(make_placeholder(size or (352, 200)))
-                last_stamp = now
+                placeholder_stamp = stamp()
+            if placeholder_stamp != last_rendered_stamp:
+                write(make_placeholder(size or (352, 200), placeholder_stamp))
+                last_rendered_stamp = placeholder_stamp
             last_rendered = None
         elif last_frame is not None:
             if in_placeholder:
