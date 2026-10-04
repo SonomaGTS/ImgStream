@@ -20,8 +20,6 @@ A second small script reads that file and serves it as an MJPEG stream. Any numb
 
 If you need RTSP rather than MJPEG, you can pipe this feed through go2rtc or a similar tool.
 
-This project outputs an MJPEG stream that only one client can connect to. If you need RTSP or the ability for multiple clients to connect, you can pipe this feed through go2rtc or another method.
-
 
 ## Why
 
