@@ -17,7 +17,11 @@ A Python script fetches your image over HTTP. It checks the image is whole. It d
 
 A second small script reads that file and serves it as an MJPEG stream. Any number of viewers can connect at once.
 
+
 If you need RTSP rather than MJPEG, you can pipe this feed through go2rtc or a similar tool.
+
+This project outputs an MJPEG stream that only one client can connect to. If you need RTSP or the ability for multiple clients to connect, you can pipe this feed through go2rtc or another method.
+
 
 ## Why
 
